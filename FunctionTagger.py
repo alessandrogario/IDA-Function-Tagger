@@ -42,6 +42,7 @@ class TagManager(object):
 
         if tag_name not in tag_list:
             tag_list.append(tag_name)
+        tag_list.sort()
 
         function_comment = function_comment + open_tag
         for tag in tag_list:
@@ -65,14 +66,14 @@ class TagManager(object):
         for tag in configuration["tag_list"]:
             print("Scanning for tag '%s'..." % tag["name"])
             for imported_function in tag["import_list"]:
-                function_address = LocByName(str(imported_function)) # 'unicode' to 'str'
+                function_address = LocByName(str(imported_function))
                 if function_address == BADADDR:
                     continue
 
                 cross_reference_list = CodeRefsTo(function_address, 0)
                 for xref in cross_reference_list:
                     function_name = GetFunctionName(xref)
-                    self._addTagToFunction(function_name, str(tag["name"])) # 'unicode' to 'str'
+                    self._addTagToFunction(function_name, str(tag["name"]))
 
     def removeAllTags(self):
         global open_tag
@@ -140,55 +141,79 @@ class TagManager(object):
 
 class TagViewer_t(PluginForm):
     def Update(self):
-        self._tag_list.clear();
-        self._function_list.clear();
+        self._tag_list_model.clear();
+        self._function_list_model.clear();
 
-        root_item = QtGui.QTreeWidgetItem(self._tag_list)
-        root_item.setText(0, "Tag List")
+        self._tag_list_model.setHorizontalHeaderLabels(["Tag", "Function", "Address"])
+        self._function_list_model.setHorizontalHeaderLabels(["Function", "Address", "Tags"])
 
         for tag_name in self._tag_manager.tagList().iterkeys():
             tag = self._tag_manager.tagList()[tag_name]
 
-            tag_item = QtGui.QTreeWidgetItem(root_item)
-            tag_item.setText(0, tag_name)
+            tag_item = QtGui.QStandardItem(tag_name)
+            self._tag_list_model.appendRow([tag_item])
 
             for function_name in tag:
-                item = QtGui.QTreeWidgetItem(tag_item)
-                item.setText(1, function_name)
+                function_name_item = QtGui.QStandardItem(function_name)
 
                 address = LocByName(function_name)
-                item.setText(2, "0x%X" % address)
+                address_item = QtGui.QStandardItem("0x%X" % address)
 
-        root_item = QtGui.QTreeWidgetItem(self._function_list)
-        root_item.setText(0, "Function List")
+                tag_item.appendRow([QtGui.QStandardItem(), function_name_item, address_item])
 
         for function_name in self._tag_manager.functionList().iterkeys():
             tag_list = self._tag_manager.functionList()[function_name]
-            item = QtGui.QTreeWidgetItem(root_item)
-            item.setText(0, function_name)
 
-            address = LocByName(function_name)
-            item.setText(1, "0x%X" % address)
+            function_name_item = QtGui.QStandardItem(function_name)
+            address_item = QtGui.QStandardItem("0x%X" % LocByName(function_name))
 
             tag_list_string = ""
             for tag in tag_list:
                 tag_list_string = tag_list_string + " " + tag
 
-            item.setText(2, tag_list_string)
+            tag_list_item = QtGui.QStandardItem(tag_list_string)
 
-        self._function_list.expandAll()
-        self._tag_list.expandAll()
+            self._function_list_model.appendRow([function_name_item, address_item, tag_list_item])
+
+        self._function_list_view.expandAll()
+        self._tag_list_view.expandAll()
 
         for i in range(0, 2):
-            self._function_list.resizeColumnToContents(i)
-            self._tag_list.resizeColumnToContents(i)
+            self._function_list_view.resizeColumnToContents(i)
+            self._tag_list_view.resizeColumnToContents(i)
 
-    def _onTagClick(self, item, column):
-        function_address = int(item.text(2), 16)
+    def _onTagClick(self, model_index):
+        function_address = BADADDR
+
+        if model_index.column() == 2:
+            try:
+                function_address = int(model_index.data(), 16)
+            except:
+                pass
+
+        elif model_index.column() == 1:
+            function_address = LocByName(str(model_index.data()))
+
+        else:
+            return
+
         Jump(function_address)
 
-    def _onFunctionClick(self, item, column):
-        function_address = int(item.text(1), 16)
+    def _onFunctionClick(self, model_index):
+        function_address = BADADDR
+
+        if model_index.column() == 1:
+            try:
+                function_address = int(model_index.data(), 16)
+            except:
+                pass
+
+        elif model_index.column() == 0:
+            function_address = LocByName(str(model_index.data()))
+
+        else:
+            return
+
         Jump(function_address)
 
     def _onUpdateClick(self):
@@ -215,53 +240,94 @@ class TagViewer_t(PluginForm):
 
     def _onHomepageClick(self):
         webbrowser.open("http://alessandrogar.io", new = 2, autoraise = True)
-        return
+
+    def _onClearFilterClick(self):
+        self._filter_box.clear()
+
+    def _onFilterTextChanged(self, text):
+        filter = QtCore.QRegExp(text, QtCore.Qt.CaseInsensitive, QtCore.QRegExp.Wildcard)
+
+        self._function_list_model_filter.setFilterRegExp(filter)
+
+        self._function_list_view.expandAll()
+        self._tag_list_view.expandAll()
 
     def OnCreate(self, parent_form):
         self._tag_manager = TagManager()
         self._tag_manager.update()
 
+        self._tag_list_model = QtGui.QStandardItemModel()
+
+        self._function_list_model = QtGui.QStandardItemModel()
+        self._function_list_model_filter = QtGui.QSortFilterProxyModel()
+        self._function_list_model_filter.setSourceModel(self._function_list_model)
+        self._function_list_model_filter.setFilterKeyColumn(2)
+
         layout = QtGui.QVBoxLayout()
+        filter_layout = QtGui.QHBoxLayout()
+
+        text_label = QtGui.QLabel()
+        text_label.setText("Filter: ")
+        filter_layout.addWidget(text_label)
+
+        self._filter_box = QtGui.QLineEdit()
+        self._filter_box.textChanged.connect(self._onFilterTextChanged)
+        filter_layout.addWidget(self._filter_box)
+
+        button = QtGui.QPushButton()
+        button.setText("Clear")
+        button.clicked.connect(self._onClearFilterClick)
+        filter_layout.addWidget(button)
+
+        layout.addLayout(filter_layout)
 
         self._parent_widget = self.FormToPySideWidget(parent_form)
         splitter = QtGui.QSplitter()
         layout.addWidget(splitter)
 
-        self._tag_list = QtGui.QTreeWidget()
-        self._tag_list.setHeaderLabels(["Tag", "Function", "Address"])
-        self._tag_list.itemDoubleClicked.connect(self._onTagClick)
-        splitter.addWidget(self._tag_list)
+        self._tag_list_view = QtGui.QTreeView()
+        self._tag_list_view.setAlternatingRowColors(True)
+        self._tag_list_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        self._tag_list_view.setModel(self._tag_list_model)
+        self._tag_list_view.setUniformRowHeights(True)
+        self._tag_list_view.doubleClicked.connect(self._onTagClick)
+        self._tag_list_view.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
+        splitter.addWidget(self._tag_list_view)
 
-        self._function_list = QtGui.QTreeWidget()
-        self._function_list.setHeaderLabels(["Function", "Address", "Tags"])
-        self._function_list.itemDoubleClicked.connect(self._onFunctionClick)
-        splitter.addWidget(self._function_list)
+        self._function_list_view = QtGui.QTreeView()
+        self._function_list_view.setAlternatingRowColors(True)
+        self._function_list_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        self._function_list_view.setModel(self._function_list_model_filter)
+        self._function_list_view.setUniformRowHeights(True)
+        self._function_list_view.doubleClicked.connect(self._onFunctionClick)
+        self._function_list_view.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
+        splitter.addWidget(self._function_list_view)
 
-        buttons_layout = QtGui.QHBoxLayout()
+        controls_layout = QtGui.QHBoxLayout()
 
         button = QtGui.QPushButton()
         button.setText("Homepage")
         button.clicked.connect(self._onHomepageClick)
-        buttons_layout.addWidget(button)
+        controls_layout.addWidget(button)
 
-        buttons_layout.insertStretch(1, -1)
+        controls_layout.insertStretch(1, -1)
 
         button = QtGui.QPushButton()
         button.setText("Update")
         button.clicked.connect(self._onUpdateClick)
-        buttons_layout.addWidget(button)
+        controls_layout.addWidget(button)
 
         button = QtGui.QPushButton()
         button.setText("Scan database")
         button.clicked.connect(self._onScanDatabaseClick)
-        buttons_layout.addWidget(button)
+        controls_layout.addWidget(button)
 
         button = QtGui.QPushButton()
         button.setText("Remove all tags")
         button.clicked.connect(self._onRemoveAllTagsClick)
-        buttons_layout.addWidget(button)
+        controls_layout.addWidget(button)
 
-        layout.addLayout(buttons_layout)        
+        layout.addLayout(controls_layout)        
 
         self.Update()
 
