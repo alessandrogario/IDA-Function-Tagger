@@ -6,7 +6,7 @@ from idautils import *
 from idaapi import *
 from idaapi import PluginForm
 
-from PySide import QtGui, QtCore
+from PyQt5 import QtGui, QtCore, QtWidgets
 
 open_tag = "[TagList:"
 close_tag = "]"
@@ -221,7 +221,7 @@ class TagViewer_t(PluginForm):
         self.Update()
 
     def _onScanDatabaseClick(self):
-        file_path = QtGui.QFileDialog.getOpenFileName(self._parent_widget, 'Open configuration file', os.curdir, "*.json")
+        file_path = QtWidgets.QFileDialog.getOpenFileName(self._parent_widget, 'Open configuration file', os.curdir, "*.json")
         if len(file_path[0]) == 0:
             return
 
@@ -239,7 +239,7 @@ class TagViewer_t(PluginForm):
         self.Update()
 
     def _onHomepageClick(self):
-        webbrowser.open("http://alessandrogar.io", new = 2, autoraise = True)
+        webbrowser.open("https://alessandrogar.io", new = 2, autoraise = True)
 
     def _onClearFilterClick(self):
         self._filter_box.clear()
@@ -259,70 +259,70 @@ class TagViewer_t(PluginForm):
         self._tag_list_model = QtGui.QStandardItemModel()
 
         self._function_list_model = QtGui.QStandardItemModel()
-        self._function_list_model_filter = QtGui.QSortFilterProxyModel()
+        self._function_list_model_filter = QtCore.QSortFilterProxyModel()
         self._function_list_model_filter.setSourceModel(self._function_list_model)
         self._function_list_model_filter.setFilterKeyColumn(2)
 
-        layout = QtGui.QVBoxLayout()
-        filter_layout = QtGui.QHBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
+        filter_layout = QtWidgets.QHBoxLayout()
 
-        text_label = QtGui.QLabel()
+        text_label = QtWidgets.QLabel()
         text_label.setText("Filter: ")
         filter_layout.addWidget(text_label)
 
-        self._filter_box = QtGui.QLineEdit()
+        self._filter_box = QtWidgets.QLineEdit()
         self._filter_box.textChanged.connect(self._onFilterTextChanged)
         filter_layout.addWidget(self._filter_box)
 
-        button = QtGui.QPushButton()
+        button = QtWidgets.QPushButton()
         button.setText("Clear")
         button.clicked.connect(self._onClearFilterClick)
         filter_layout.addWidget(button)
 
         layout.addLayout(filter_layout)
 
-        self._parent_widget = self.FormToPySideWidget(parent_form)
-        splitter = QtGui.QSplitter()
+        self._parent_widget = self.FormToPyQtWidget(parent_form)
+        splitter = QtWidgets.QSplitter()
         layout.addWidget(splitter)
 
-        self._tag_list_view = QtGui.QTreeView()
+        self._tag_list_view = QtWidgets.QTreeView()
         self._tag_list_view.setAlternatingRowColors(True)
-        self._tag_list_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        self._tag_list_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self._tag_list_view.setModel(self._tag_list_model)
         self._tag_list_view.setUniformRowHeights(True)
         self._tag_list_view.doubleClicked.connect(self._onTagClick)
-        self._tag_list_view.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
+        self._tag_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         splitter.addWidget(self._tag_list_view)
 
-        self._function_list_view = QtGui.QTreeView()
+        self._function_list_view = QtWidgets.QTreeView()
         self._function_list_view.setAlternatingRowColors(True)
-        self._function_list_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        self._function_list_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self._function_list_view.setModel(self._function_list_model_filter)
         self._function_list_view.setUniformRowHeights(True)
         self._function_list_view.doubleClicked.connect(self._onFunctionClick)
-        self._function_list_view.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
+        self._function_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         splitter.addWidget(self._function_list_view)
 
-        controls_layout = QtGui.QHBoxLayout()
+        controls_layout = QtWidgets.QHBoxLayout()
 
-        button = QtGui.QPushButton()
+        button = QtWidgets.QPushButton()
         button.setText("Homepage")
         button.clicked.connect(self._onHomepageClick)
         controls_layout.addWidget(button)
 
         controls_layout.insertStretch(1, -1)
 
-        button = QtGui.QPushButton()
+        button = QtWidgets.QPushButton()
         button.setText("Update")
         button.clicked.connect(self._onUpdateClick)
         controls_layout.addWidget(button)
 
-        button = QtGui.QPushButton()
+        button = QtWidgets.QPushButton()
         button.setText("Scan database")
         button.clicked.connect(self._onScanDatabaseClick)
         controls_layout.addWidget(button)
 
-        button = QtGui.QPushButton()
+        button = QtWidgets.QPushButton()
         button.setText("Remove all tags")
         button.clicked.connect(self._onRemoveAllTagsClick)
         controls_layout.addWidget(button)
@@ -352,64 +352,5 @@ def openTagViewer():
     global TagViewer
     TagViewer.Show()
 
-open_dialog_menu_item = None
-unload_script_menu_item = None
-
-def initializeMenus():
-    global open_dialog_menu_item
-    global unload_script_menu_item
-
-    if open_dialog_menu_item == None:
-        open_dialog_menu_item = idaapi.add_menu_item("View/", "Function Tags", "", 0, openTagViewer, None)
-        if open_dialog_menu_item is None:
-            del open_dialog_menu_item
-            open_dialog_menu_item = None
-            return False
-
-    if unload_script_menu_item == None:
-        unload_script_menu_item = idaapi.add_menu_item("Edit/", "Unload Function Tags Plugin", "", 0, unloadScript, None)
-        if unload_script_menu_item is None:
-            del unload_script_menu_item
-            unload_script_menu_item = None
-
-            idaapi.del_menu_item(open_dialog_menu_item)
-            del open_dialog_menu_item
-            open_dialog_menu_item = None
-
-            return False
-
-    return True
-
-def uninstallMenus():
-    global open_dialog_menu_item
-    global unload_script_menu_item
-
-    if open_dialog_menu_item != None:
-        idaapi.del_menu_item(open_dialog_menu_item)
-        del open_dialog_menu_item
-        open_dialog_menu_item = None
-
-    if unload_script_menu_item != None:
-        idaapi.del_menu_item(unload_script_menu_item)
-        del unload_script_menu_item
-        unload_script_menu_item = None
-
-    return True
-
-def main():
-    global TagViewer
-
-    try:
-        TagViewer
-        print("The script is already loaded")
-
-    except:
-        TagViewer = TagViewer_t()
-
-        if not initializeMenus():
-            del TagViewer
-            print("Could not initialize the menus")
-
-        TagViewer.Show()
-
-main()
+TagViewer = TagViewer_t()
+TagViewer.Show()
