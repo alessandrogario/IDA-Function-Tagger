@@ -1,10 +1,12 @@
 import idc
 import json
 import webbrowser
+import os
 
 import ida_kernwin
 import idc
 import idautils
+import idaapi
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -28,7 +30,7 @@ class TagManager:
 
         tag_list_start = function_comment.find(OPEN_TAG)
         if tag_list_start == -1:
-            set_func_cmt(function_address, function_comment +
+            idc.set_func_cmt(function_address, function_comment +
                          OPEN_TAG + tag_name + CLOSE_TAG, False)
             return
 
@@ -80,7 +82,7 @@ class TagManager:
                 function_address = idc.get_name_ea_simple(
                     str(imported_function))
 
-                if function_address == BADADDR:
+                if function_address == idaapi.BADADDR:
                     continue
 
                 cross_reference_list = idautils.CodeRefsTo(function_address, 0)
@@ -103,7 +105,7 @@ class TagManager:
             if tag_list_end == -1:
                 continue
 
-            set_func_cmt(function_address, function_comment.replace(
+            idc.set_func_cmt(function_address, function_comment.replace(
                 function_comment[tag_list_start: tag_list_end + 1], ""), 0)
 
     def clear(self):
@@ -171,7 +173,7 @@ class TagManagerInterface(ida_kernwin.PluginForm):
             for function_name in tag:
                 function_name_item = QtGui.QStandardItem(function_name)
 
-                address = get_name_ea_simple(function_name)
+                address = idc.get_name_ea_simple(function_name)
                 address_item = QtGui.QStandardItem("0x%X" % address)
 
                 tag_item.appendRow(
@@ -182,7 +184,7 @@ class TagManagerInterface(ida_kernwin.PluginForm):
 
             function_name_item = QtGui.QStandardItem(function_name)
             address_item = QtGui.QStandardItem(
-                "0x%X" % get_name_ea_simple(function_name))
+                "0x%X" % idc.get_name_ea_simple(function_name))
 
             tag_list_string = ""
             for tag in tag_list:
@@ -201,7 +203,7 @@ class TagManagerInterface(ida_kernwin.PluginForm):
             self._tag_list_view.resizeColumnToContents(i)
 
     def _onTagClick(self, model_index):
-        function_address = BADADDR
+        function_address = idaapi.BADADDR
 
         if model_index.column() == 2:
             try:
@@ -215,10 +217,10 @@ class TagManagerInterface(ida_kernwin.PluginForm):
         else:
             return
 
-        Jump(function_address)
+        ida_kernwin.jumpto(function_address)
 
     def _onFunctionClick(self, model_index):
-        function_address = BADADDR
+        function_address = idaapi.BADADDR
 
         if model_index.column() == 1:
             try:
@@ -232,7 +234,7 @@ class TagManagerInterface(ida_kernwin.PluginForm):
         else:
             return
 
-        Jump(function_address)
+        ida_kernwin.jumpto(function_address)
 
     def _onUpdateClick(self):
         self._tag_manager.update()
